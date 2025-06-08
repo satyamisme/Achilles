@@ -3,6 +3,7 @@ name: CI Build and Release
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -41,12 +42,30 @@ jobs:
     - name: Install project
       run: sudo make install
 
+    - name: Upload Achilles artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Achilles-binary
+        path: build/Achilles
+        if-no-files-found: error
+
+    - name: Check file existence before release
+      if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+      run: |
+        if [ -f build/Achilles ]; then
+          echo "Achilles binary found, proceeding to release"
+        else
+          echo "Error: Achilles binary not found in build directory"
+          ls -la build/
+          exit 1
+        fi
+
     - name: Create Release
-      if: github.event_name == 'workflow_dispatch'
+      if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.event.inputs.release_tag }}
-        name: Release ${{ github.event.inputs.release_tag }}
+        tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref_name }}
+        name: Release ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref_name }}
         draft: false
         prerelease: false
         files: build/Achilles
